@@ -1,0 +1,103 @@
+// VT Eating - Database Schema
+// PostgreSQL for scalability (AWS RDS, Supabase, or local)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  emailVerified Boolean   @default(false) @map("email_verified")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  mealRequestsAsRequester MealRequest[] @relation("Requester")
+  fulfillmentsAsFulfiller Fulfillment[] @relation("Fulfiller")
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String   // 6-digit OTP
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([email, expiresAt])
+}
+
+model MealRequest {
+  id              String    @id @default(cuid())
+  requesterId     String    @map("requester_id")
+  diningHall      String    @map("dining_hall")
+  restaurant      String
+  mealDescription String    @map("meal_description")
+  status          RequestStatus @default(PENDING)
+  reservedById    String?   @map("reserved_by_id")
+  reservedAt      DateTime? @map("reserved_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  requester    User          @relation("Requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  fulfillment  Fulfillment?
+  payment      Payment?
+}
+
+enum RequestStatus {
+  PENDING         // Awaiting fulfiller
+  FULFILLED       // Fulfiller placed order, uploaded confirmation screenshot
+  AWAITING_PAYMENT // Screenshot uploaded, awaiting requester payment
+  PAID            // Requester paid $6
+  CONFIRMED       // Requester confirmed receipt, fulfiller paid
+  CANCELLED
+}
+
+model Fulfillment {
+  id                      String    @id @default(cuid())
+  requestId               String    @unique @map("request_id")
+  fulfillerId             String    @map("fulfiller_id")
+  orderConfirmationPath   String?   @map("order_confirmation_path")
+  requesterConfirmedAt    DateTime? @map("requester_confirmed_at")
+  status                  FulfillmentStatus @default(CLAIMED)
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  request  MealRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  fulfiller User       @relation("Fulfiller", fields: [fulfillerId], references: [id], onDelete: Cascade)
+}
+
+enum FulfillmentStatus {
+  CLAIMED     // Fulfiller placed order, uploaded confirmation
+  CONFIRMED   // Requester confirmed receipt
+  CANCELLED
+}
+
+model Payment {
+  id                    String   @id @default(cuid())
+  requestId             String   @unique @map("request_id")
+  amountCents            Int      @map("amount_cents")
+  stripePaymentIntentId  String?  @map("stripe_payment_intent_id")
+  stripeTransferId       String?  @map("stripe_transfer_id")
+  status                PaymentStatus @default(PENDING)
+  requesterChargedAt    DateTime? @map("requester_charged_at")
+  fulfillerPaidAt       DateTime? @map("fulfiller_paid_at")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  request MealRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+}
+
+enum PaymentStatus {
+  PENDING     // Awaiting payment
+  HELD        // $6 charged, held in escrow
+  RELEASED    // $5 to fulfiller, $1 to company
+  FAILED
+  REFUNDED
+}

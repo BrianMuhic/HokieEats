@@ -1,0 +1,34 @@
+# VT Eating - Local development
+# Run: docker-compose up -d postgres
+# App: npm run dev (after prisma db push)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: vteating_dev
+      POSTGRES_DB: vteating
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:vteating_dev@postgres:5432/vteating
+      JWT_SECRET: dev-jwt-secret-change-in-prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
