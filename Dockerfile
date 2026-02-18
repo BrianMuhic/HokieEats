@@ -9,8 +9,11 @@ WORKDIR /app
 ENV NODE_OPTIONS="--max-old-space-size=2048"
 
 COPY package.json package-lock.json* ./
-# Lightweight flags to reduce memory during install on Pi
-RUN npm install --no-audit --no-fund
+# Increase timeout for slow/unstable Pi network; retries help with flaky connections
+RUN npm config set fetch-timeout 600000 && \
+    npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm install --no-audit --no-fund
 
 COPY . .
 RUN npx prisma generate
