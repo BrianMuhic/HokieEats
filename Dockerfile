@@ -1,7 +1,8 @@
 # VT Eating - Production Dockerfile
 # Suitable for AWS ECS/EC2 or Raspberry Pi
 
-FROM node:20-alpine
+# Debian (glibc) - Prisma engines work reliably on ARM64; Alpine/musl causes "Error load" on Pi
+FROM node:20-slim
 
 WORKDIR /app
 
