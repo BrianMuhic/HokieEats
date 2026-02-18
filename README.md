@@ -1,6 +1,6 @@
 # VT Eating
 
-A web application for Virginia Tech students to request or fulfill meal deliveries from VT dining halls. Only `@vt.edu` emails.
+A web application for Virginia Tech students to request or fulfill meal requests for other students from VT dining halls. Only `@vt.edu` emails.
 
 - **Request a meal**: Pick dining hall & restaurant, describe your meal. $6 total.
 - **Fulfill orders**: Pick up & deliver. Earn $5 per order ($1 platform fee).
