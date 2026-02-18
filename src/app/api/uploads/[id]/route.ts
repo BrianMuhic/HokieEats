@@ -22,7 +22,7 @@ export async function GET(
     return NextResponse.json({ error: "Image not found" }, { status: 404 });
   }
 
-  return new NextResponse(upload.data, {
+  return new NextResponse(new Uint8Array(upload.data), {
     headers: {
       "Content-Type": upload.contentType,
       "Cache-Control": "public, max-age=31536000, immutable",
