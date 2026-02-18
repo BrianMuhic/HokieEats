@@ -5,8 +5,8 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Reduce memory usage for Raspberry Pi (npm can OOM on 2–4GB RAM)
-ENV NODE_OPTIONS="--max-old-space-size=512"
+# 512MB was too low and caused npm OOM (exit 146). With 8GB RAM + swap, 2GB is safe.
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 
 COPY package.json package-lock.json* ./
 # Lightweight flags to reduce memory during install on Pi
