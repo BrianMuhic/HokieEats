@@ -4,6 +4,9 @@
 # Debian (glibc) - Prisma engines work reliably on ARM64; Alpine/musl causes "Error load" on Pi
 FROM node:20-slim
 
+# Prisma requires OpenSSL at runtime
+RUN apt-get update -y && apt-get install -y openssl libssl3 && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # 512MB was too low and caused npm OOM (exit 146). With 8GB RAM + swap, 2GB is safe.
@@ -21,8 +24,8 @@ RUN npx prisma generate
 RUN npm run build
 
 EXPOSE 3000
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 COPY scripts/docker-entrypoint.sh /app/scripts/
 RUN chmod +x /app/scripts/docker-entrypoint.sh
