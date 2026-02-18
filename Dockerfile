@@ -5,8 +5,12 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Reduce memory usage for Raspberry Pi (npm ci/build can OOM on 2–4GB RAM)
+ENV NODE_OPTIONS="--max-old-space-size=512"
+
 COPY package.json package-lock.json* ./
-RUN npm ci
+# npm install uses less memory than npm ci on Pi (avoids OOM exit 146)
+RUN npm install
 
 COPY . .
 RUN npx prisma generate
