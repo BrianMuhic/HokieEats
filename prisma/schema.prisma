@@ -160,3 +160,11 @@ model FulfillerPayout {
 
   @@index([fulfillerId])
 }
+
+// Images stored in DB for Cloudflare/serverless (no persistent filesystem)
+model Upload {
+  id          String   @id @default(cuid())
+  data        Bytes    @db.ByteA
+  contentType String   @map("content_type")
+  createdAt   DateTime @default(now()) @map("created_at")
+}

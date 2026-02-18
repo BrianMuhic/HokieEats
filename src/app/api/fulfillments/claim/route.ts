@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { isReservationValid } from "@/lib/reservation";
@@ -81,15 +79,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const ext = path.extname(file.name) || ".jpg";
-    const filename = `${requestId}-${Date.now()}${ext}`;
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "fulfillments");
-    const filepath = path.join(uploadDir, filename);
-    const publicPath = `/uploads/fulfillments/${filename}`;
-
-    await mkdir(uploadDir, { recursive: true });
     const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(filepath, buffer);
+    const upload = await prisma.upload.create({
+      data: {
+        data: buffer,
+        contentType: file.type,
+      },
+    });
+    const publicPath = `/api/uploads/${upload.id}`;
 
     try {
       await capturePaymentIntent(claimResult.paymentIntentId!);

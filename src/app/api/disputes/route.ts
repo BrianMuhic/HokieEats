@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 
@@ -87,14 +85,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "disputes");
-    await mkdir(uploadDir, { recursive: true });
-
-    const ext1 = path.extname(image1.name) || ".jpg";
-    const filename1 = `dispute-${requestId}-1-${Date.now()}${ext1}`;
-    const filepath1 = path.join(uploadDir, filename1);
-    const publicPath1 = `/uploads/disputes/${filename1}`;
-    await writeFile(filepath1, Buffer.from(await image1.arrayBuffer()));
+    const buffer1 = Buffer.from(await image1.arrayBuffer());
+    const upload1 = await prisma.upload.create({
+      data: { data: buffer1, contentType: image1.type },
+    });
+    const publicPath1 = `/api/uploads/${upload1.id}`;
 
     let publicPath2: string | null = null;
     if (image2 && image2.size > 0) {
@@ -110,11 +105,11 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
-      const ext2 = path.extname(image2.name) || ".jpg";
-      const filename2 = `dispute-${requestId}-2-${Date.now()}${ext2}`;
-      const filepath2 = path.join(uploadDir, filename2);
-      publicPath2 = `/uploads/disputes/${filename2}`;
-      await writeFile(filepath2, Buffer.from(await image2.arrayBuffer()));
+      const buffer2 = Buffer.from(await image2.arrayBuffer());
+      const upload2 = await prisma.upload.create({
+        data: { data: buffer2, contentType: image2.type },
+      });
+      publicPath2 = `/api/uploads/${upload2.id}`;
     }
 
     await prisma.dispute.create({
