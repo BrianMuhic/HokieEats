@@ -13,7 +13,7 @@ export const DINING_LOCATIONS: DiningLocation[] = [
   {
     id: "dietrick-hall",
     name: "Dietrick Hall",
-    restaurants: ["D2 (all-you-care-to-eat)", "Deet's Place", "DX", "Xpress Lane Market", "Futurebites", "Allee", "Salsa's", "Pan Asia", "Olives", "Mangia", "La Patisserie", "Gauchos Gluten-Free", "Gauchos", "Eden's West Side", "Eden's East Side", "East Side Deli"],
+    restaurants: ["D2 (all-you-care-to-eat)", "Deet's Place", "DX", "Xpress Lane Market", "Futurebites"],
   },
   {
     id: "duckys",
