@@ -20,6 +20,9 @@ RUN npm config set fetch-timeout 600000 && \
     npm install --no-audit --no-fund
 
 COPY . .
+# NEXT_PUBLIC_* must be set at build time for client-side Stripe
+ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+ENV NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 RUN npx prisma generate
 RUN npm run build
 
