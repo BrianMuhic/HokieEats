@@ -11,15 +11,56 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  passwordHash  String    @map("password_hash")
-  emailVerified Boolean   @default(false) @map("email_verified")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id                     String    @id @default(cuid())
+  email                  String    @unique
+  passwordHash           String    @map("password_hash")
+  emailVerified          Boolean   @default(false) @map("email_verified")
+  stripeConnectAccountId String?   @unique @map("stripe_connect_account_id")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
 
   mealRequestsAsRequester MealRequest[] @relation("Requester")
   fulfillmentsAsFulfiller Fulfillment[] @relation("Fulfiller")
+  fulfillerPayouts        FulfillerPayout[] @relation("FulfillerPayouts")
+}
+
+model Dispute {
+  id          String        @id @default(cuid())
+  requestId   String        @unique @map("request_id")
+  requesterId String        @map("requester_id")
+  reason      String        @db.Text
+  image1Path  String?       @map("image1_path")  // Required for new disputes, nullable for legacy
+  image2Path  String?       @map("image2_path")
+  status      DisputeStatus @default(PENDING)
+  resolvedAt  DateTime?     @map("resolved_at")
+  resolvedById String?      @map("resolved_by_id")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  request MealRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  reversals DisputeReversal[]
+
+  @@index([status])
+}
+
+enum DisputeStatus {
+  PENDING
+  APPROVED
+  DENIED
+}
+
+model DisputeReversal {
+  id                 String   @id @default(cuid())
+  disputeId          String   @map("dispute_id")
+  fulfillerPayoutId  String   @map("fulfiller_payout_id")
+  amountCents        Int      @map("amount_cents")
+  stripeReversalId   String   @unique @map("stripe_reversal_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  dispute Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  fulfillerPayout FulfillerPayout @relation(fields: [fulfillerPayoutId], references: [id], onDelete: Cascade)
+
+  @@index([fulfillerPayoutId])
 }
 
 model OtpCode {
@@ -48,6 +89,7 @@ model MealRequest {
   requester    User          @relation("Requester", fields: [requesterId], references: [id], onDelete: Cascade)
   fulfillment  Fulfillment?
   payment      Payment?
+  dispute      Dispute?
 }
 
 enum RequestStatus {
@@ -64,6 +106,7 @@ model Fulfillment {
   requestId               String    @unique @map("request_id")
   fulfillerId             String    @map("fulfiller_id")
   orderConfirmationPath   String?   @map("order_confirmation_path")
+  estimatedWaitTime       String?   @map("estimated_wait_time")
   requesterConfirmedAt    DateTime? @map("requester_confirmed_at")
   status                  FulfillmentStatus @default(CLAIMED)
   createdAt               DateTime  @default(now()) @map("created_at")
@@ -95,9 +138,24 @@ model Payment {
 }
 
 enum PaymentStatus {
-  PENDING     // Awaiting payment
-  HELD        // $6 charged, held in escrow
-  RELEASED    // $5 to fulfiller, $1 to company
+  PENDING         // Awaiting card authorization
+  PRE_AUTHORIZED  // Card authorized, hold in place (capture on fulfiller proof)
+  HELD            // $6 charged, held in escrow
+  RELEASED        // $5 to fulfiller, $1 to company
   FAILED
   REFUNDED
+  CANCELLED       // Authorization released (buyer cancelled before fulfillment)
+}
+
+model FulfillerPayout {
+  id                 String   @id @default(cuid())
+  fulfillerId        String   @map("fulfiller_id")
+  amountCents        Int      @map("amount_cents")
+  stripeTransferId   String   @unique @map("stripe_transfer_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  fulfiller User @relation("FulfillerPayouts", fields: [fulfillerId], references: [id], onDelete: Cascade)
+  disputeReversals DisputeReversal[]
+
+  @@index([fulfillerId])
 }

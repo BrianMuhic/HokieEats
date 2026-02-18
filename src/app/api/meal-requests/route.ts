@@ -48,14 +48,24 @@ export async function POST(req: Request) {
       );
     }
 
-    const request = await prisma.mealRequest.create({
-      data: {
-        requesterId: session.userId,
-        diningHall: location.name,
-        restaurant,
-        mealDescription: mealDescription.trim(),
-        status: "PENDING",
-      },
+    const request = await prisma.$transaction(async (tx) => {
+      const req = await tx.mealRequest.create({
+        data: {
+          requesterId: session.userId,
+          diningHall: location.name,
+          restaurant,
+          mealDescription: mealDescription.trim(),
+          status: "PENDING",
+        },
+      });
+      await tx.payment.create({
+        data: {
+          requestId: req.id,
+          amountCents: 600,
+          status: "PENDING",
+        },
+      });
+      return req;
     });
 
     return NextResponse.json({ id: request.id });

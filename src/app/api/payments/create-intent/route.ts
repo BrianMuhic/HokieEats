@@ -27,26 +27,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Not found." }, { status: 404 });
     }
 
-    if (
-      !mealRequest.fulfillment ||
-      mealRequest.fulfillment.status !== "CLAIMED"
-    ) {
-      return NextResponse.json(
-        { error: "Order not ready for payment." },
-        { status: 400 }
-      );
-    }
-
     const payment = mealRequest.payment;
     if (!payment || payment.status !== "PENDING") {
-      if (payment?.status === "HELD") {
+      if (payment?.status === "PRE_AUTHORIZED" || payment?.status === "HELD") {
         return NextResponse.json(
-          { error: "Already paid." },
+          { error: "Already authorized." },
           { status: 400 }
         );
       }
       return NextResponse.json(
         { error: "Invalid payment state." },
+        { status: 400 }
+      );
+    }
+
+    if (mealRequest.status !== "PENDING") {
+      return NextResponse.json(
+        { error: "Request no longer available for authorization." },
         { status: 400 }
       );
     }
@@ -63,8 +60,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ clientSecret });
   } catch (err) {
     console.error("Create payment intent error:", err);
+    const message =
+      err instanceof Error ? err.message : "Something went wrong.";
     return NextResponse.json(
-      { error: "Something went wrong." },
+      { error: message },
       { status: 500 }
     );
   }

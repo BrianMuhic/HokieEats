@@ -11,7 +11,7 @@ export default async function MyOrdersPage() {
   const [myRequests, myFulfillments] = await Promise.all([
     prisma.mealRequest.findMany({
       where: { requesterId: session.userId },
-      include: { fulfillment: true, payment: true },
+      include: { fulfillment: true, payment: true, dispute: true },
       orderBy: { createdAt: "desc" },
     }),
     prisma.fulfillment.findMany({
@@ -48,6 +48,7 @@ export default async function MyOrdersPage() {
                   id: r.fulfillment.id,
                   status: r.fulfillment.status,
                   orderConfirmationPath: r.fulfillment.orderConfirmationPath,
+                  estimatedWaitTime: r.fulfillment.estimatedWaitTime,
                   requesterConfirmedAt: r.fulfillment.requesterConfirmedAt?.toISOString() ?? null,
                 }
               : null,
@@ -56,6 +57,9 @@ export default async function MyOrdersPage() {
                   id: r.payment.id,
                   status: r.payment.status,
                 }
+              : null,
+            dispute: r.dispute
+              ? { id: r.dispute.id, status: r.dispute.status }
               : null,
           }))}
           fulfillments={myFulfillments.map((f) => ({
@@ -67,6 +71,7 @@ export default async function MyOrdersPage() {
             status: f.status,
             createdAt: f.createdAt.toISOString(),
             orderConfirmationPath: f.orderConfirmationPath,
+            estimatedWaitTime: f.estimatedWaitTime,
           }))}
         />
       </main>

@@ -10,7 +10,15 @@ const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "pk_test_placeholder"
 );
 
-function CheckoutForm({ clientSecret }: { clientSecret: string }) {
+function CheckoutForm({
+  clientSecret,
+  requestId,
+  isPreAuth = false,
+}: {
+  clientSecret: string;
+  requestId: string;
+  isPreAuth?: boolean;
+}) {
   const stripe = useStripe();
   const elements = useElements();
   const router = useRouter();
@@ -34,14 +42,19 @@ function CheckoutForm({ clientSecret }: { clientSecret: string }) {
       elements,
       clientSecret,
       confirmParams: {
-        return_url: `${window.location.origin}/my-orders`,
+        return_url: `${window.location.origin}/my-orders?authorized=1&requestId=${requestId}`,
       },
     });
 
     if (confirmError) {
       setError(confirmError.message ?? "Payment failed.");
     } else {
-      router.push("/my-orders");
+      await fetch("/api/payments/sync-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId }),
+      });
+      router.push("/my-orders?authorized=1&requestId=" + requestId);
       router.refresh();
     }
     setLoading(false);
@@ -56,7 +69,11 @@ function CheckoutForm({ clientSecret }: { clientSecret: string }) {
         disabled={!stripe || loading}
         className="w-full bg-vt-maroon hover:bg-vt-burgundy text-white py-3 rounded-lg font-medium disabled:opacity-50"
       >
-        {loading ? "Processing…" : "Pay $6"}
+        {loading
+          ? "Processing…"
+          : isPreAuth
+            ? "Authorize $6"
+            : "Pay $6"}
       </button>
       <Link href="/my-orders" className="block text-center text-stone-600 text-sm hover:underline">
         Cancel
@@ -65,7 +82,13 @@ function CheckoutForm({ clientSecret }: { clientSecret: string }) {
   );
 }
 
-export default function PayForm({ requestId }: { requestId: string }) {
+export default function PayForm({
+  requestId,
+  isPreAuth = false,
+}: {
+  requestId: string;
+  isPreAuth?: boolean;
+}) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -76,8 +99,8 @@ export default function PayForm({ requestId }: { requestId: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ requestId }),
     })
-      .then((r) => r.json())
-      .then((data) => {
+      .then(async (r) => {
+        const data = await r.json();
         if (data.clientSecret) setClientSecret(data.clientSecret);
         else setErr(data.error ?? "Failed to load payment form.");
       })
@@ -107,7 +130,7 @@ export default function PayForm({ requestId }: { requestId: string }) {
 
   return (
     <Elements stripe={stripePromise} options={options}>
-      <CheckoutForm clientSecret={clientSecret} />
+      <CheckoutForm clientSecret={clientSecret} requestId={requestId} isPreAuth={isPreAuth} />
     </Elements>
   );
 }

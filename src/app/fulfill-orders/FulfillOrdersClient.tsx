@@ -25,10 +25,35 @@ export default function FulfillOrdersClient({
   const safeRequests = Array.isArray(requests) ? requests : [];
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [reservedAt, setReservedAt] = useState<Record<string, number>>({});
-  const [secondsLeft, setSecondsLeft] = useState<Record<string, number>>({});
+
+  const initialReserved = (() => {
+    const map: Record<string, number> = {};
+    let firstReservedId: string | null = null;
+    const now = Date.now();
+    for (const r of safeRequests) {
+      if (r.reservedByMe && r.reservedAt) {
+        const ts = new Date(r.reservedAt).getTime();
+        if (ts + RESERVATION_SECONDS * 1000 > now) {
+          map[r.id] = ts;
+          if (!firstReservedId) firstReservedId = r.id;
+        }
+      }
+    }
+    return { reservedAt: map, expandedId: firstReservedId };
+  })();
+
+  const [expandedId, setExpandedId] = useState<string | null>(initialReserved.expandedId);
+  const [reservedAt, setReservedAt] = useState<Record<string, number>>(initialReserved.reservedAt);
+  const [secondsLeft, setSecondsLeft] = useState<Record<string, number>>(() => {
+    const map: Record<string, number> = {};
+    const now = Date.now();
+    for (const [id, ts] of Object.entries(initialReserved.reservedAt)) {
+      map[id] = Math.max(0, Math.floor((ts + RESERVATION_SECONDS * 1000 - now) / 1000));
+    }
+    return map;
+  });
   const fileInputRef = useRef<Record<string, HTMLInputElement | null>>({});
+  const [estimatedWaitTime, setEstimatedWaitTime] = useState("");
 
   useEffect(() => {
     if (Object.keys(reservedAt).length === 0) return;
@@ -72,19 +97,38 @@ export default function FulfillOrdersClient({
     }
   }
 
-  function handleCancelReservation(requestId: string) {
-    setExpandedId((cur) => (cur === requestId ? null : cur));
-    setReservedAt((r) => {
-      const u = { ...r };
-      delete u[requestId];
-      return u;
-    });
-    setSecondsLeft((s) => {
-      const u = { ...s };
-      delete u[requestId];
-      return u;
-    });
-    router.refresh();
+  async function handleCancelReservation(requestId: string) {
+    setError("");
+    setLoadingId(requestId);
+    try {
+      const res = await fetch("/api/fulfillments/release", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Failed to release reservation.");
+        return;
+      }
+      setExpandedId((cur) => (cur === requestId ? null : cur));
+      setEstimatedWaitTime("");
+      setReservedAt((r) => {
+        const u = { ...r };
+        delete u[requestId];
+        return u;
+      });
+      setSecondsLeft((s) => {
+        const u = { ...s };
+        delete u[requestId];
+        return u;
+      });
+      router.refresh();
+    } catch {
+      setError("Something went wrong.");
+    } finally {
+      setLoadingId(null);
+    }
   }
 
   async function handleClaim(requestId: string) {
@@ -99,6 +143,7 @@ export default function FulfillOrdersClient({
       const formData = new FormData();
       formData.append("requestId", requestId);
       formData.append("screenshot", input.files[0]);
+      if (estimatedWaitTime.trim()) formData.append("estimatedWaitTime", estimatedWaitTime.trim());
       const res = await fetch("/api/fulfillments/claim", {
         method: "POST",
         body: formData,
@@ -114,6 +159,7 @@ export default function FulfillOrdersClient({
     } finally {
       setLoadingId(null);
       setExpandedId(null);
+      setEstimatedWaitTime("");
     }
   }
 
@@ -164,6 +210,19 @@ export default function FulfillOrdersClient({
                   accept="image/jpeg,image/png,image/webp,image/gif"
                   className="block w-full text-sm text-stone-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-vt-orange/20 file:text-vt-orange hover:file:bg-vt-orange/30"
                 />
+                <div>
+                  <label htmlFor={`estimated-wait-${r.id}`} className="block text-sm font-medium text-stone-700 mb-1">
+                    Estimated wait time for buyer
+                  </label>
+                  <input
+                    id={`estimated-wait-${r.id}`}
+                    type="text"
+                    placeholder="e.g. 10–15 min"
+                    value={estimatedWaitTime}
+                    onChange={(e) => setEstimatedWaitTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm text-stone-700 placeholder:text-stone-400 focus:ring-2 focus:ring-vt-orange/30 focus:border-vt-orange"
+                  />
+                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleClaim(r.id)}
@@ -174,9 +233,10 @@ export default function FulfillOrdersClient({
                   </button>
                   <button
                     onClick={() => handleCancelReservation(r.id)}
-                    className="px-4 py-2 border border-stone-300 rounded-lg text-stone-600 hover:bg-stone-50"
+                    disabled={!!loadingId}
+                    className="px-4 py-2 border border-stone-300 rounded-lg text-stone-600 hover:bg-stone-50 disabled:opacity-50"
                   >
-                    Cancel
+                    {loadingId === r.id ? "Releasing…" : "Cancel"}
                   </button>
                 </div>
               </div>

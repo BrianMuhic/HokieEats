@@ -39,7 +39,17 @@ export async function POST(req: Request) {
         stripePaymentIntentId: paymentIntent.id,
       },
     });
-    if (payment && payment.status === "PENDING") {
+    if (!payment) return NextResponse.json({ received: true });
+
+    if (payment.status === "PENDING" && paymentIntent.status === "requires_capture") {
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: "PRE_AUTHORIZED" },
+      });
+    } else if (
+      payment.status === "PRE_AUTHORIZED" &&
+      paymentIntent.status === "succeeded"
+    ) {
       await prisma.payment.update({
         where: { id: payment.id },
         data: {

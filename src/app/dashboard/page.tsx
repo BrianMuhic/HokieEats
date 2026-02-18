@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
+import { isAdmin } from "@/lib/auth";
 
 export default async function DashboardPage() {
   const session = await getSession();
   if (!session) redirect("/sign-in");
+  const showAdmin = isAdmin(session.email);
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -51,13 +53,27 @@ export default async function DashboardPage() {
           </Link>
         </div>
 
-        <div className="mt-12">
+        <div className="mt-12 flex flex-wrap gap-6">
           <Link
             href="/my-orders"
             className="text-vt-maroon font-medium hover:underline"
           >
             View my orders →
           </Link>
+          <Link
+            href="/fulfiller-earnings"
+            className="text-vt-orange font-medium hover:underline"
+          >
+            My earnings & payouts →
+          </Link>
+          {showAdmin && (
+            <Link
+              href="/admin"
+              className="text-amber-700 font-medium hover:underline"
+            >
+              Admin panel →
+            </Link>
+          )}
         </div>
       </main>
     </div>

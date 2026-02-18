@@ -65,3 +65,18 @@ export function validateVtEmail(email: string): boolean {
   const normalized = email.toLowerCase().trim();
   return normalized.endsWith("@vt.edu");
 }
+
+/** Admin emails from env (comma-separated). Must be lowercase @vt.edu. */
+export function isAdmin(email: string): boolean {
+  const list = process.env.ADMIN_EMAILS ?? "";
+  if (!list.trim()) return false;
+  const emails = list.split(",").map((e) => e.toLowerCase().trim());
+  return emails.includes(email.toLowerCase().trim());
+}
+
+export async function requireAdmin(): Promise<{ userId: string; email: string }> {
+  const session = await getSession();
+  if (!session) throw new Error("Unauthorized");
+  if (!isAdmin(session.email)) throw new Error("Admin access required");
+  return session;
+}

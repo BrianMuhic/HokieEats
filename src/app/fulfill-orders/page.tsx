@@ -24,6 +24,7 @@ export default async function FulfillOrdersPage() {
       where: {
         status: "PENDING",
         requesterId: { not: session.userId },
+        payment: { status: "PRE_AUTHORIZED" },
         OR: [
           { reservedById: null },
           { reservedById: session.userId },
@@ -53,9 +54,14 @@ export default async function FulfillOrdersPage() {
         <Link href="/dashboard" className="text-xl font-bold">
           VT Eating
         </Link>
-        <Link href="/dashboard" className="text-white/80 hover:text-white text-sm">
-          ← Dashboard
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link href="/fulfiller-earnings" className="text-white/80 hover:text-white text-sm">
+            My Earnings
+          </Link>
+          <Link href="/dashboard" className="text-white/80 hover:text-white text-sm">
+            ← Dashboard
+          </Link>
+        </div>
       </header>
 
       <main className="max-w-2xl mx-auto px-6 py-12">

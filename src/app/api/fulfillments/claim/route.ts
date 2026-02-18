@@ -4,6 +4,7 @@ import path from "path";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { isReservationValid } from "@/lib/reservation";
+import { capturePaymentIntent } from "@/lib/stripe";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -18,6 +19,7 @@ export async function POST(req: Request) {
     const formData = await req.formData();
     const requestId = formData.get("requestId") as string | null;
     const file = formData.get("screenshot") as File | null;
+    const estimatedWaitTime = (formData.get("estimatedWaitTime") as string | null)?.trim() || null;
 
     if (!requestId) {
       return NextResponse.json(
@@ -50,7 +52,7 @@ export async function POST(req: Request) {
     const claimResult = await prisma.$transaction(async (tx) => {
       const request = await tx.mealRequest.findUnique({
         where: { id: requestId },
-        include: { fulfillment: true },
+        include: { fulfillment: true, payment: true },
       });
 
       if (!request) return { ok: false, error: "Request not found." };
@@ -58,13 +60,18 @@ export async function POST(req: Request) {
       if (request.status !== "PENDING") return { ok: false, error: "This request is no longer available." };
       if (request.requesterId === session.userId) return { ok: false, error: "You cannot fulfill your own request." };
 
+      const payment = request.payment;
+      if (!payment || payment.status !== "PRE_AUTHORIZED" || !payment.stripePaymentIntentId) {
+        return { ok: false, error: "This request does not have a valid payment authorization." };
+      }
+
       const hasValidReservation =
         request.reservedById === session.userId && isReservationValid(request.reservedAt);
       if (!hasValidReservation) {
         return { ok: false, error: "Reservation expired or someone else claimed it. Please try another order." };
       }
 
-      return { ok: true };
+      return { ok: true, paymentIntentId: payment.stripePaymentIntentId };
     });
 
     if (!claimResult.ok) {
@@ -84,28 +91,39 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
     await writeFile(filepath, buffer);
 
+    try {
+      await capturePaymentIntent(claimResult.paymentIntentId!);
+    } catch (captureErr) {
+      console.error("Capture payment intent error:", captureErr);
+      return NextResponse.json(
+        { error: "Failed to charge buyer. Please try again." },
+        { status: 500 }
+      );
+    }
+
     await prisma.$transaction([
       prisma.fulfillment.create({
         data: {
           requestId,
           fulfillerId: session.userId,
           orderConfirmationPath: publicPath,
+          estimatedWaitTime,
           status: "CLAIMED",
         },
       }),
       prisma.mealRequest.update({
         where: { id: requestId },
         data: {
-          status: "AWAITING_PAYMENT",
+          status: "PAID",
           reservedById: null,
           reservedAt: null,
         },
       }),
-      prisma.payment.create({
+      prisma.payment.update({
+        where: { requestId },
         data: {
-          requestId,
-          amountCents: 600,
-          status: "PENDING",
+          status: "HELD",
+          requesterChargedAt: new Date(),
         },
       }),
     ]);

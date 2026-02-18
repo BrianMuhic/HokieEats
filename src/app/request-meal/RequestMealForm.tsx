@@ -58,7 +58,7 @@ export default function RequestMealForm({ userId }: { userId: string }) {
         return;
       }
 
-      router.push("/my-orders");
+      router.push(`/pay/${data.id}`);
       router.refresh();
     } catch {
       setError("Something went wrong.");
